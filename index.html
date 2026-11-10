@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LapSim — Laparoscopic Entry Simulator</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+  </script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>LapSim</h1>
+          <p>Laparoscopic entry &amp; probe insertion simulator</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusPillText">Ready</span></div>
+      <div class="top-actions">
+        <button class="btn ghost" id="btnLayout" title="Toggle large monitor (M)">Monitor ⤢</button>
+        <button class="btn ghost" id="btnHelp">Controls</button>
+      </div>
+    </header>
+
+    <!-- LEFT: controls -->
+    <aside class="panel controls" id="controls">
+      <section>
+        <h2>Port site</h2>
+        <div class="ports" id="portList"></div>
+        <p class="hint" id="portDesc"></p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="field">
+          <label for="depth">Insertion depth <output id="depthOut">0.0 cm</output></label>
+          <input type="range" id="depth" min="0" max="32" step="0.05" value="0">
+        </div>
+        <div class="field">
+          <label for="angCC">Tilt cranial ↔ caudal <output id="angCCOut">0°</output></label>
+          <input type="range" id="angCC" min="-60" max="60" step="0.5" value="0">
+          <div class="scale"><span>caudal</span><span>cranial</span></div>
+        </div>
+        <div class="field">
+          <label for="angLat">Tilt patient right ↔ left <output id="angLatOut">0°</output></label>
+          <input type="range" id="angLat" min="-60" max="60" step="0.5" value="0">
+          <div class="scale"><span>right</span><span>left</span></div>
+        </div>
+        <div class="field">
+          <label>Optic</label>
+          <div class="seg" id="optic">
+            <button data-v="0">0° forward</button>
+            <button data-v="30" class="on">30° oblique</button>
+          </div>
+        </div>
+        <div class="field" id="rollField">
+          <label for="roll">Light-post rotation <output id="rollOut">0°</output></label>
+          <input type="range" id="roll" min="-180" max="180" step="1" value="0">
+        </div>
+      </section>
+
+      <section>
+        <h2>Patient</h2>
+        <div class="field">
+          <label for="iap">Insufflation pressure <output id="iapOut">12 mmHg</output></label>
+          <input type="range" id="iap" min="0" max="20" step="1" value="12">
+        </div>
+        <div class="field">
+          <label for="bmi">BMI <output id="bmiOut">26</output></label>
+          <input type="range" id="bmi" min="18" max="50" step="1" value="26">
+        </div>
+      </section>
+
+      <section>
+        <h2>Options</h2>
+        <label class="check"><input type="checkbox" id="antifog" checked> Warmed scope / anti-fog</label>
+        <label class="check"><input type="checkbox" id="showOmentum" checked> Show greater omentum</label>
+        <label class="check"><input type="checkbox" id="highlight" checked> Highlight nearest structure (external view)</label>
+        <div class="field">
+          <label for="skin">Skin opacity (external view) <output id="skinOut">35%</output></label>
+          <input type="range" id="skin" min="0" max="100" step="1" value="35">
+        </div>
+      </section>
+
+      <section class="buttons">
+        <button class="btn" id="btnSuction">Suction / irrigate</button>
+        <button class="btn" id="btnResetScope">Withdraw scope</button>
+        <button class="btn danger" id="btnResetSession">Reset session</button>
+      </section>
+    </aside>
+
+    <!-- CENTRE: views -->
+    <main class="views" id="views">
+      <section class="view scope" id="scopeView" tabindex="0" aria-label="Laparoscope monitor">
+        <div class="view-tag">LAPAROSCOPE · <span id="hudOptic">30°</span> · 10 mm</div>
+        <div class="hud tl"><span id="hudClock">00:00</span></div>
+        <div class="hud bl">IAP <b id="hudIap">12</b> mmHg · CO₂</div>
+        <div class="hud br">DEPTH <b id="hudDepth">0.0</b> cm</div>
+        <div class="hud layer" id="hudLayer"></div>
+        <div class="alert" id="hudAlert"></div>
+        <div class="hud hint-overlay">Drag to steer · scroll / W S to advance</div>
+      </section>
+      <section class="view ext" id="extView" aria-label="External 3D view">
+        <div class="view-tag">EXTERNAL VIEW</div>
+        <div class="ext-tools">
+          <button class="btn small ghost" id="btnFocusTip">Follow tip</button>
+          <button class="btn small ghost" id="btnResetCam">Reset view</button>
+        </div>
+        <div class="legend">
+          <span><i style="background:#2dd4bf"></i>scope</span>
+          <span><i style="background:#facc15"></i>trajectory</span>
+          <span><i class="ring"></i>ports</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- RIGHT: results -->
+    <aside class="panel results" id="results">
+      <section class="status-card" id="statusCard">
+        <div class="status-label" id="statusLabel">Scope outside patient</div>
+        <div class="status-sub" id="statusSub">Select a port and advance the scope</div>
+      </section>
+
+      <section>
+        <h2>Tip readout</h2>
+        <dl class="readout">
+          <dt>Tissue / space</dt><dd id="rLayer">—</dd>
+          <dt>Abdominal region</dt><dd id="rRegion">—</dd>
+          <dt>Wall thickness at port</dt><dd id="rWall">—</dd>
+          <dt>Intra-abdominal length</dt><dd id="rIntra">—</dd>
+          <dt>Angle to wall normal</dt><dd id="rAngle">—</dd>
+          <dt>Ahead on shaft axis</dt><dd id="rAhead">—</dd>
+          <dt>Centre of view</dt><dd id="rCentre">—</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>Nearest structures</h2>
+        <ul class="near" id="nearList"></ul>
+      </section>
+
+      <section>
+        <h2>Field of view</h2>
+        <ul class="fov" id="fovList"><li class="muted">Enter the cavity to analyse the view</li></ul>
+      </section>
+
+      <section>
+        <h2>Session results</h2>
+        <div class="stats">
+          <div><b id="sEntries">0</b><span>cavity entries</span></div>
+          <div><b id="sContacts">0</b><span>tissue contacts</span></div>
+          <div><b id="sInjuries">0</b><span>injuries</span></div>
+          <div><b id="sMaxDepth">0.0</b><span>max depth (cm)</span></div>
+          <div><b id="sCavTime">0s</b><span>time in cavity</span></div>
+          <div><b id="sPath">0</b><span>tip path (cm)</span></div>
+        </div>
+        <div class="chips" id="seenChips"></div>
+        <button class="btn small" id="btnExport">Export results (JSON)</button>
+      </section>
+
+      <section class="log-section">
+        <h2>Event log</h2>
+        <ol class="log" id="eventLog"></ol>
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="help">
+    <h3>Controls</h3>
+    <table>
+      <tr><td><kbd>W</kbd> / <kbd>S</kbd> or scroll on monitor</td><td>Advance / withdraw scope</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Tilt cranial / caudal (pivoting at the port)</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Tilt toward patient's right / left</td></tr>
+      <tr><td>Drag on monitor</td><td>Steer the scope</td></tr>
+      <tr><td><kbd>Q</kbd> / <kbd>E</kbd></td><td>Rotate the 30° light post</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Choose port site</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Toggle large monitor</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Suction / irrigate</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Withdraw scope</td></tr>
+    </table>
+    <p class="hint">Anatomy, tissue thicknesses and injury thresholds are simplified for teaching and demonstration. Not a clinical tool.</p>
+    <form method="dialog"><button class="btn">Close</button></form>
+  </dialog>
+
+  <div class="loading" id="loading"><div class="spinner"></div><p>Building anatomy…</p></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
