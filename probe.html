@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProbeSim — Anastomosis Balloon Probe</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+  </script>
+</head>
+<body class="probe-page">
+  <canvas id="gl"></canvas>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>ProbeSim</h1>
+          <p>Transanal balloon probe — procedure animation</p>
+        </div>
+      </div>
+      <nav class="tabs" aria-label="Simulations">
+        <a href="index.html">Laparoscopic entry</a>
+        <a href="probe.html" class="on" aria-current="page">Anastomosis probe</a>
+      </nav>
+      <div class="status-pill" id="statusPill" data-level="info"><span class="dot"></span><span id="statusPillText">Ready</span></div>
+      <div class="top-actions">
+        <button class="btn ghost" id="btnHelp">Controls</button>
+      </div>
+    </header>
+
+    <!-- LEFT: procedure + playback -->
+    <aside class="panel controls">
+      <section>
+        <h2>Procedure</h2>
+        <ol class="steps" id="steps"></ol>
+      </section>
+
+      <section>
+        <h2>Playback</h2>
+        <div class="transport">
+          <button class="btn icon" id="btnRestart" title="Restart (R)" aria-label="Restart">⏮</button>
+          <button class="btn icon" id="btnPrev" title="Previous step (←)" aria-label="Previous step">◀◀</button>
+          <button class="btn icon play" id="btnPlay" title="Play / pause (Space)" aria-label="Play">▶</button>
+          <button class="btn icon" id="btnNext" title="Next step (→)" aria-label="Next step">▶▶</button>
+        </div>
+        <div class="field">
+          <label for="scrub">Timeline <output id="timeOut">00:00 / 00:00</output></label>
+          <input type="range" id="scrub" min="0" max="1" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label>Speed</label>
+          <div class="seg" id="speed">
+            <button data-v="0.5">0.5×</button>
+            <button data-v="1" class="on">1×</button>
+            <button data-v="2">2×</button>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="loop"> Loop</label>
+      </section>
+
+      <section>
+        <h2>View</h2>
+        <label class="check"><input type="checkbox" id="autoCam" checked> Auto camera</label>
+        <label class="check"><input type="checkbox" id="cutaway" checked> Sagittal cutaway of rectum</label>
+        <label class="check"><input type="checkbox" id="labels" checked> Labels</label>
+        <label class="check"><input type="checkbox" id="showHand" checked> Show hand</label>
+        <div class="field">
+          <label for="skin">Skin opacity <output id="skinOut">30%</output></label>
+          <input type="range" id="skin" min="0" max="100" step="1" value="30">
+        </div>
+      </section>
+
+      <section>
+        <h2>Model parameters</h2>
+        <dl class="readout small" id="params"></dl>
+      </section>
+    </aside>
+
+    <!-- CENTRE: views -->
+    <main class="views probe-views">
+      <section class="view" id="mainView" aria-label="3D view">
+        <div class="view-tag">3D VIEW</div>
+        <div class="caption" id="caption"><b id="capStep">Step 1</b><span id="capText"></span></div>
+        <div class="labels" id="labelsMain"></div>
+        <div class="legend">
+          <span>Drag to orbit · scroll to zoom</span>
+        </div>
+      </section>
+      <section class="view" id="closeView" aria-label="Close-up sagittal cutaway">
+        <div class="view-tag">CLOSE-UP · SAGITTAL CUTAWAY</div>
+        <div class="labels" id="labelsClose"></div>
+      </section>
+    </main>
+
+    <!-- RIGHT: readouts -->
+    <aside class="panel results">
+      <section class="status-card" id="statusCard" data-level="info">
+        <div class="status-label" id="statusLabel">—</div>
+        <div class="status-sub" id="statusSub"></div>
+      </section>
+
+      <section>
+        <h2>Probe</h2>
+        <dl class="readout">
+          <dt>Tip depth from anal verge</dt><dd id="rTip">—</dd>
+          <dt>Red line → anal verge</dt><dd id="rRed">—</dd>
+          <dt>Balloon centre depth</dt><dd id="rBalloonPos">—</dd>
+          <dt>Balloon diameter</dt><dd id="rDia">—</dd>
+          <dt>Balloon volume</dt><dd id="rVol">—</dd>
+          <dt>Balloon pressure</dt><dd id="rPress">—</dd>
+        </dl>
+        <div class="meter"><i id="pressBar"></i></div>
+      </section>
+
+      <section>
+        <h2>Handle buttons</h2>
+        <ul class="hbuttons" id="hButtons"></ul>
+        <div class="led-row"><span class="led" id="ledDot"></span><span id="ledText">Off</span></div>
+      </section>
+
+      <section class="log-section">
+        <h2>Event log</h2>
+        <ol class="log" id="eventLog"></ol>
+      </section>
+
+    </aside>
+  </div>
+
+  <dialog id="help">
+    <h3>Controls</h3>
+    <table>
+      <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+      <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Previous / next step</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Restart</td></tr>
+      <tr><td>Click a step</td><td>Jump to that step</td></tr>
+      <tr><td>Drag / scroll in 3D view</td><td>Orbit / zoom (turns off auto camera)</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Toggle cutaway</td></tr>
+    </table>
+    <p class="hint">Probe dimensions, the 9 cm anastomosis height and the button functions are illustrative and set in <code>js/probeModel.js</code>. Not a clinical tool.</p>
+    <form method="dialog"><button class="btn">Close</button></form>
+  </dialog>
+
+  <div class="loading" id="loading"><div class="spinner"></div><p>Building scene…</p></div>
+
+  <script type="module" src="js/probe.js"></script>
+</body>
+</html>

@@ -1,11 +1,50 @@
-# LapSim — laparoscopic entry & probe insertion simulator
+# BioMed simulators
+
+Two browser-based 3D simulations, linked by tabs at the top of each page:
+
+| Page | What it shows |
+|---|---|
+| **Laparoscopic entry** — `index.html` | LapSim: interactive laparoscope insertion through the abdominal wall, with a live scope feed and results. |
+| **Anastomosis probe** — `probe.html` | ProbeSim: animated transanal balloon-probe procedure — assembly, insertion to the red line, balloon inflation at the anastomosis, button sequence, deflation and removal. |
+
+Runs fully offline — three.js is bundled in `vendor/`.
+
+## ProbeSim — anastomosis balloon probe
+
+A step-by-step animation in the same 3D style as LapSim (translucent patient, internal
+anatomy), with the patient in lithotomy position:
+
+1. **Assemble the probe** — handle, balloon, atraumatic tip and inflation line fit onto the marked shaft (labelled).
+2. **Grip & power on** — a gloved hand grips the handle; the thumb presses **button 1** and the status light turns green.
+3. **Position at anal verge** — the probe is brought in line with the rectum.
+4. **Insert to the red line** — the probe advances until the red line sits at the anal verge; the balloon is then level with the anastomosis (9 cm).
+5. **Inflate the balloon** — thumb presses **button 2**; the balloon expands and the rectal wall bulges at the anastomosis.
+6. **Hold** at the anastomosis.
+7. **Deflate the balloon** — thumb presses **button 3**.
+8. **Withdraw the probe.**
+
+The bottom panel is a fixed close-up with a sagittal cutaway of the rectum so the probe,
+red line and balloon can be seen inside. The right panel shows tip depth, red-line
+distance, balloon diameter/volume/pressure, button states and a time-stamped event log.
+
+**Controls:** play/pause (`Space`), previous/next step (`←`/`→`), restart (`R`), click a
+step to jump to it, drag the timeline, 0.5×/1×/2× speed, loop, auto camera (turns off
+when you orbit), cutaway (`C`), labels, show/hide hand, skin opacity.
+
+**Changing the device:** every dimension (shaft, balloon size, red-line position, handle,
+button positions/colours/names) is in the `PROBE` object at the top of `js/probeModel.js`.
+The step order, timings and captions are the `PHASES` list in `js/probe.js`.
+
+The hand is the MIT-licensed WebXR "generic hand" model (`assets/hand-right.glb`, licence
+in `assets/HAND-MODEL-LICENSE.md`), posed procedurally to wrap the handle and solve the
+thumb position for each button.
+
+## LapSim — laparoscopic entry
 
 A browser-based 3D simulation of a laparoscope being inserted into an insufflated abdomen.
 Pick a port site, push the scope through the abdominal wall, and watch both the
 laparoscope camera feed and the results: tissue layers crossed, organs in view, distance
 to the nearest structures, contacts, injuries, and a session log you can export.
-
-Runs fully offline — three.js is bundled in `vendor/`.
 
 ## Run it on localhost
 
@@ -19,7 +58,7 @@ cd lap-sim
 python3 -m http.server 8000
 ```
 
-Then open <http://localhost:8000>.
+Then open <http://localhost:8000> (LapSim) or <http://localhost:8000/probe.html> (ProbeSim).
 
 Or use the helper script: `./start.sh` (macOS/Linux) or `start.bat` (Windows).
 
@@ -76,6 +115,7 @@ and the clearance under the wall) and BMI (changes subcutaneous fat thickness).
   frames so a fast move can't skip through an organ), UI, and the two-viewport renderer.
 - `js/scopePost.js` — the monitor's post-processing shader.
 - `js/textures.js` — procedural, tileable tissue textures drawn on canvas.
+- `js/probe.js`, `js/probeModel.js`, `js/hand.js` — ProbeSim scene and timeline, the probe model, and the posable gripping hand.
 
 Coordinates are in centimetres: +y anterior, −z cranial, +x patient's left.
 

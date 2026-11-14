@@ -317,7 +317,7 @@ function bowelPath() {
   return pts;
 }
 
-const COLON = [
+export const COLON = [
   [-9.8, -4.2, 12.5], [-10.4, -3, 8], [-10.6, -1.6, 3], [-9.8, -0.4, -1.5], [-7.6, 1.0, -3.2],
   [-3, 2.0, -2.2], [2, 2.4, -1.8], [6.8, 1.6, -4.2], [10.2, 0.2, -6.2], [11.4, -1.8, -2],
   [11.6, -3.2, 4], [10.8, -3.6, 9.5], [8, -3.4, 12.8], [4.5, -3.6, 14.4], [1.5, -5.2, 14.8], [0.5, -7, 16.5],
@@ -336,7 +336,13 @@ function omentumHeight(x, z) {
   return 2.6 + (fbm3(x * 0.33, 1.7, z * 0.33) - 0.5) * 0.9 - droop + lift;
 }
 
-export function buildAnatomy() {
+/**
+ * @param {object} [opts]
+ * @param {number[][]} [opts.colonPath]  override the colon centre-line (e.g. to end at an anastomosis)
+ * @param {boolean} [opts.colonTaperEnd] taper the distal end of the colon (default true)
+ * @param {number} [opts.iap]            initial insufflation pressure in mmHg (default 12)
+ */
+export function buildAnatomy(opts = {}) {
   const texCache = {};
   const T = (k) => (texCache[k] ??= makeTissue(TISSUE[k]));
   const mat = (key, { rough = 0.42, cc = 0.9, ccr = 0.2, bump = 2.0, side = THREE.FrontSide, repeat = null, transparent = false, opacity = 1 } = {}) => {
@@ -402,7 +408,7 @@ export function buildAnatomy() {
     prims: [E([10.5, -3.5, -12], [2.2, 3.4, 4.5], [0, 0.5, 0.3], { bump: 0.1, seed: 6 })],
     material: mat('spleen', { rough: 0.3, cc: 1, bump: 1.2 }),
   });
-  const colon = new TubePrim(COLON, 2.0, { haustra: 0.11, wobble: 0.05, seed: 7 });
+  const colon = new TubePrim(opts.colonPath ?? COLON, 2.0, { haustra: 0.11, wobble: 0.05, seed: 7, taperEnd: opts.colonTaperEnd ?? true });
   addOrgan({
     id: 'colon', name: 'Colon', kind: 'hollow', injury: 'Colonic perforation — faecal contamination', color: '#e4b8a2',
     prims: [colon],
@@ -463,6 +469,7 @@ export function buildAnatomy() {
   }
 
   // Posterior parietal peritoneum draped over the retroperitoneal great vessels (visual only)
+  let posteriorSheet;
   {
     const g = new THREE.PlaneGeometry(11, 34, 60, 120);
     g.rotateX(-Math.PI / 2);
@@ -479,6 +486,7 @@ export function buildAnatomy() {
     const sheet = new THREE.Mesh(g, m);
     sheet.renderOrder = 2;
     group.add(sheet);
+    posteriorSheet = sheet;
   }
 
   // Peritoneal cavity lining (rendered from the inside)
@@ -509,7 +517,8 @@ export function buildAnatomy() {
 
   const _p = new THREE.Vector3();
   const api = {
-    group, organs, cavityMesh,
+    group, organs, cavityMesh, posteriorSheet,
+    makeMaterial: mat,
     byId: Object.fromEntries(organs.map((o) => [o.id, o])),
     setIAP,
     /** Distance from p to an organ's surface (negative = inside). */
@@ -548,6 +557,6 @@ export function buildAnatomy() {
     },
   };
   group.add(cavityMesh);
-  setIAP(12);
+  setIAP(opts.iap ?? 12);
   return api;
 }
